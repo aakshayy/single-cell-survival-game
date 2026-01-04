@@ -4,7 +4,7 @@ A multiplayer browser-based survival game where players navigate a hexagonal gri
 
 ## 🎮 Play the Game
 
-**[Play Demo on GitHub Pages](https://[YOUR_USERNAME].github.io/single-cell-survival-game/)**
+**[Play Demo on GitHub Pages](https://aakshayy.github.io/single-cell-survival-game/)**
 
 ## Features
 
@@ -27,7 +27,7 @@ To run the game locally:
 
 1. Clone this repository
 ```bash
-git clone https://github.com/[YOUR_USERNAME]/single-cell-survival-game.git
+git clone https://github.com/aakshayy/single-cell-survival-game.git
 cd single-cell-survival-game
 ```
 
