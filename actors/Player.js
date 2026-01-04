@@ -1,3 +1,5 @@
+import { GameConfig } from '../core/config.js';
+
 /**
  * Player entity with pixel-based position for smooth movement
  */
@@ -132,5 +134,118 @@ export class Player {
             });
         }
         return points;
+    }
+
+    render(ctx) {
+        // Skip fully dead players (not falling)
+        if (!this.isAlive && !this.isFalling) return;
+
+        ctx.save();
+
+        // Animation variables
+        let alpha = 1;
+        let scale = 1;
+        let yOffset = 0;
+
+        // Spawn animation
+        if (this.isSpawning) {
+            const progress = this.getSpawnProgress();
+            // Bounce in with overshoot
+            const eased = progress < 0.5
+                ? 2 * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+            const overshoot = Math.sin(progress * Math.PI) * 0.3;
+            scale = eased + overshoot;
+            alpha = eased;
+            yOffset = -(1 - eased) * 50; // Start slightly above
+        }
+
+        // Falling animation (overrides spawn)
+        if (this.isFalling) {
+            const progress = this.getFallProgress();
+            // Ease-in for falling
+            const easedProgress = progress * progress;
+
+            alpha = 1 - easedProgress;
+            scale = 1 - easedProgress * 0.5; // Shrink as falling
+            yOffset = easedProgress * 100; // Fall down
+        }
+
+        ctx.globalAlpha = alpha;
+        ctx.translate(this.x, this.y + yOffset);
+
+        // Apply squash and stretch (if not spawning)
+        const finalScaleX = this.isSpawning ? scale : this.scaleX * scale;
+        const finalScaleY = this.isSpawning ? scale : this.scaleY * scale;
+        ctx.scale(finalScaleX, finalScaleY);
+
+        // Draw amoeba body with wobble
+        const wobblePoints = this.getWobblePoints(16, GameConfig.PLAYER_RADIUS);
+
+        // Create gradient for 3D effect
+        const gradient = ctx.createRadialGradient(
+            -5, -5, 2,
+            0, 0, GameConfig.PLAYER_RADIUS
+        );
+        gradient.addColorStop(0, this.lightenColor(this.color, 40));
+        gradient.addColorStop(0.5, this.color);
+        gradient.addColorStop(1, this.darkenColor(this.color, 30));
+
+        // Draw smooth amoeba shape
+        ctx.beginPath();
+        ctx.moveTo(wobblePoints[0].x, wobblePoints[0].y);
+
+        for (let i = 0; i < wobblePoints.length; i++) {
+            const current = wobblePoints[i];
+            const next = wobblePoints[(i + 1) % wobblePoints.length];
+
+            // Use quadratic curves for smooth organic shape
+            const cpX = (current.x + next.x) / 2;
+            const cpY = (current.y + next.y) / 2;
+            ctx.quadraticCurveTo(current.x, current.y, cpX, cpY);
+        }
+
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Draw eye
+        const eyeX = this.eyeOffsetX;
+        const eyeY = this.eyeOffsetY - 2; // Slightly above center
+
+        // Eye white
+        ctx.beginPath();
+        ctx.arc(eyeX, eyeY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fill();
+
+        // Pupil (moves in direction of movement)
+        const pupilOffsetX = this.eyeOffsetX * 0.5;
+        const pupilOffsetY = this.eyeOffsetY * 0.5;
+        ctx.beginPath();
+        ctx.arc(eyeX + pupilOffsetX, eyeY + pupilOffsetY, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#000';
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    lightenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.min(255, (num >> 16) + amt);
+        const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+        const B = Math.min(255, (num & 0x0000FF) + amt);
+        return `rgb(${R}, ${G}, ${B})`;
+    }
+
+    darkenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = Math.max(0, (num >> 16) - amt);
+        const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+        const B = Math.max(0, (num & 0x0000FF) - amt);
+        return `rgb(${R}, ${G}, ${B})`;
     }
 }

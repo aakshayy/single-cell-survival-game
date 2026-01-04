@@ -1,4 +1,6 @@
 import { Actor } from './Actor.js';
+import { axialToPixel } from '../core/hexUtils.js';
+import { GameConfig } from '../core/config.js';
 
 /**
  * Hexagonal tile on the game board
@@ -141,5 +143,136 @@ export class Tile extends Actor {
         const lerpSpeed = 8; // Higher = faster
         const dt = deltaTime / 1000;
         this.sinkAmount += (this.targetSink - this.sinkAmount) * lerpSpeed * dt;
+    }
+
+    render(ctx, centerX, centerY) {
+        const pixel = axialToPixel(
+            this.position,
+            GameConfig.HEX_SIZE,
+            centerX,
+            centerY
+        );
+
+        // Shattering animation
+        if (this.isShattering) {
+            const progress = this.getShatterProgress();
+            const alpha = 1 - progress;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Draw each shatter piece
+            for (let i = 0; i < this.shatterPieces.length; i++) {
+                const piece = this.shatterPieces[i];
+                const nextAngle = ((i + 1) % 6) * (Math.PI / 3) - Math.PI / 2;
+
+                // Calculate piece position based on velocity and time
+                const offsetX = piece.vx * progress * (this.shatterDuration / 1000);
+                const offsetY = piece.vy * progress * (this.shatterDuration / 1000);
+
+                ctx.save();
+                ctx.translate(pixel.x + offsetX, pixel.y + offsetY);
+                ctx.rotate(piece.rotation);
+
+                // Draw triangular piece
+                ctx.beginPath();
+                ctx.moveTo(0, 0); // Center
+                const radius = GameConfig.HEX_SIZE - 2;
+                ctx.lineTo(
+                    Math.cos(piece.angle) * radius,
+                    Math.sin(piece.angle) * radius
+                );
+                ctx.lineTo(
+                    Math.cos(nextAngle) * radius,
+                    Math.sin(nextAngle) * radius
+                );
+                ctx.closePath();
+
+                ctx.fillStyle = GameConfig.TILE_COLOR;
+                ctx.fill();
+                ctx.strokeStyle = GameConfig.TILE_BORDER;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            ctx.restore();
+            return;
+        }
+
+        if (!this.isActive) return;
+
+        let fillColor = GameConfig.TILE_COLOR;
+
+        if (this.isWarning) {
+            // Pulsing yellow warning
+            const elapsed = performance.now() - this.warningStartTime;
+            const pulse = Math.sin(elapsed / 100) * 0.3 + 0.7;
+            fillColor = `rgba(241, 196, 15, ${pulse})`;
+        }
+
+        // Spawn animation
+        if (this.isSpawning) {
+            const progress = this.getSpawnProgress();
+            // Ease out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            ctx.save();
+
+            // Start from above the screen
+            const startY = -200;
+            const currentY = startY + (pixel.y - startY) * eased;
+
+            // Scale and fade in
+            const scale = 0.3 + eased * 0.7;
+            const alpha = eased;
+
+            ctx.globalAlpha = alpha;
+            ctx.translate(pixel.x, currentY);
+            ctx.scale(scale, scale);
+
+            this.drawHexagon(ctx, 0, 0, GameConfig.HEX_SIZE - 2, fillColor);
+
+            ctx.restore();
+        } else {
+            // Apply idle animations (jiggle and sink)
+            const jiggle = this.getJiggleOffset();
+            const sinkY = this.sinkAmount;
+
+            ctx.save();
+            ctx.translate(pixel.x + jiggle.x, pixel.y + jiggle.y + sinkY);
+            ctx.rotate(jiggle.rotation);
+
+            this.drawHexagon(ctx, 0, 0, GameConfig.HEX_SIZE - 2, fillColor);
+
+            ctx.restore();
+        }
+    }
+
+    drawHexagon(ctx, x, y, radius, fillColor) {
+        ctx.beginPath();
+
+        for (let i = 0; i < 6; i++) {
+            // Pointy-top hexagon
+            const angle = (Math.PI / 3) * i - Math.PI / 2;
+            const px = x + radius * Math.cos(angle);
+            const py = y + radius * Math.sin(angle);
+
+            if (i === 0) {
+                ctx.moveTo(px, py);
+            } else {
+                ctx.lineTo(px, py);
+            }
+        }
+
+        ctx.closePath();
+
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+
+        ctx.strokeStyle = GameConfig.TILE_BORDER;
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 }
